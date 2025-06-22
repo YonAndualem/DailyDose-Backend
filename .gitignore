@@ -1,3 +1,12 @@
 node_modules
 dist
 .env
+drizzle.lock
+coverage
+.vscode
+.DS_Store
+*.log
+*.tsbuildinfo
+*.tgz
+*.swp   
+drizzle 
