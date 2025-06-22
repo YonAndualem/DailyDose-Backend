@@ -1,7 +1,7 @@
 import express from 'express';
 import { db } from '../db/index';
 import { quotes, categories } from '../db/schema';
-import { ilike, eq, and } from 'drizzle-orm';
+import { ilike, eq, and, between } from 'drizzle-orm';
 import { generateWithGemini } from '../gemini';
 
 const router = express.Router();
@@ -34,22 +34,8 @@ router.post('/', async (req, res) => {
         if (date) prompt += ` For the date ${date}.`;
 
         // Call Gemini to generate the quote
-        const geminiResult: { quote?: string; author?: string } | string = await generateWithGemini(prompt) as { quote?: string; author?: string } | string;
-
-        // Type guard: check if geminiResult is an object with 'quote' property
-        let generatedQuote: string;
-        let finalAuthor: string;
-        if (typeof geminiResult === 'object' && geminiResult !== null && 'quote' in geminiResult) {
-            generatedQuote = geminiResult.quote || '';
-            finalAuthor = author || (geminiResult as any).author || 'Unknown';
-        } else if (typeof geminiResult === 'string') {
-            generatedQuote = geminiResult;
-            finalAuthor = author || 'Unknown';
-        } else {
-            // Fallback for unexpected Gemini result shape
-            generatedQuote = '';
-            finalAuthor = author || 'Unknown';
-        }
+        const generatedQuote: string = await generateWithGemini(prompt);
+        const finalAuthor = author || 'Unknown';
 
         // Insert the new quote
         const [newQuote] = await db
@@ -174,6 +160,56 @@ router.delete('/:id', async (req, res) => {
         if (result.length === 0) return res.status(404).json({ error: 'Quote not found.' });
 
         res.json({ message: 'Quote deleted.' });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message || 'Server error.' });
+    }
+});
+
+// Quote of the Day endpoint: GET /api/quotes/random/of-the-day
+router.get('/random/of-the-day', async (req, res) => {
+    try {
+        const today = new Date();
+        today.setUTCHours(0, 0, 0, 0);
+
+        const tomorrow = new Date(today);
+        tomorrow.setUTCDate(today.getUTCDate() + 1);
+
+        // Try to find today's QOTD
+        const [existingQOTD] = await db
+            .select()
+            .from(quotes)
+            .where(
+                and(
+                    eq(quotes.type, 'daily'),
+                    between(quotes.date, today, tomorrow)
+                )
+            )
+            .limit(1);
+
+        if (existingQOTD) {
+            return res.json(existingQOTD);
+        }
+
+        // No QOTD yet: generate a new one
+        const allCategories = await db.select().from(categories);
+        const randomCat = allCategories[Math.floor(Math.random() * allCategories.length)];
+
+        const generatedQuote: string = await generateWithGemini(
+            `Give me a daily quote in the category ${randomCat.name}.`
+        );
+
+        const [newQOTD] = await db
+            .insert(quotes)
+            .values({
+                quote: generatedQuote,
+                author: 'Unknown',
+                category_id: randomCat.id,
+                type: 'daily',
+                date: today,
+            })
+            .returning();
+
+        res.json(newQOTD);
     } catch (err: any) {
         res.status(500).json({ error: err.message || 'Server error.' });
     }

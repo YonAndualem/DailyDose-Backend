@@ -5,6 +5,7 @@ import categoriesRouter from './api/categories';
 
 import { db } from './db/index';
 import { categories } from './db/schema';
+import { seedDailyQuotes } from './seedQuotes';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -36,6 +37,13 @@ app.use('/api/quotes', quotesRouter);
 
 // --- Categories endpoints ---
 app.use('/api/categories', categoriesRouter);
+
+// --- Seed daily quotes per category (ensure 5 per category) ---
+seedDailyQuotes().then(() => {
+    console.log('Daily quotes seeded!');
+}).catch(e => {
+    console.error('Seeding daily quotes error:', e);
+});
 
 app.listen(PORT, () => {
     console.log(`Gemini backend running on http://localhost:${PORT}`);
