@@ -1,13 +1,24 @@
 import express from 'express';
-import quoteRoute from './api/quote-generator';
-import dotenv from 'dotenv';
-
-dotenv.config();
+import cors from 'cors';
+import { generateWithGemini } from './gemini';
 
 const app = express();
-app.use(express.json());
-app.use('/api/quotes', quoteRoute);
+const PORT = process.env.PORT || 3001;
 
-app.listen(3001, () => {
-    console.log('Quote backend running on http://localhost:3001');
+app.use(cors());
+app.use(express.json());
+
+app.post('/api/gemini-generate', async (req, res) => {
+    try {
+        const { prompt } = req.body;
+        if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
+        const geminiResponse = await generateWithGemini(prompt);
+        res.json({ response: geminiResponse });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.listen(PORT, () => {
+    console.log(`Gemini backend running on http://localhost:${PORT}`);
 });
