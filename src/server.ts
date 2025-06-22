@@ -1,10 +1,10 @@
 import express from 'express';
 import cors from 'cors';
-import { generateWithGemini } from './gemini';
+import quotesRouter from './api/quotes';
+import categoriesRouter from './api/categories';
 
-// Drizzle imports:
-import { db } from './db/index'; // adjust path if needed
-import { categories } from './db/schema'; // adjust path if needed
+import { db } from './db/index';
+import { categories } from './db/schema';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -29,20 +29,13 @@ async function seedCategories() {
     console.log('Categories seeded!');
 }
 
-// --- Call the seeding function at startup ---
 seedCategories().catch(e => console.error('Seeding error:', e));
 
-// --- Your Gemini endpoint ---
-app.post('/api/gemini-generate', async (req, res) => {
-    try {
-        const { prompt } = req.body;
-        if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
-        const geminiResponse = await generateWithGemini(prompt);
-        res.json({ response: geminiResponse });
-    } catch (error: any) {
-        res.status(500).json({ error: error.message });
-    }
-});
+// --- Quotes endpoints ---
+app.use('/api/quotes', quotesRouter);
+
+// --- Categories endpoints ---
+app.use('/api/categories', categoriesRouter);
 
 app.listen(PORT, () => {
     console.log(`Gemini backend running on http://localhost:${PORT}`);
