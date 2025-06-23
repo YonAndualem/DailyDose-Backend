@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import quotesRouter from './api/quotes';
 import categoriesRouter from './api/categories';
-
+import './scheduler/qotd';
 import { db } from './db/index';
 import { categories } from './db/schema';
 import { seedDailyQuotes } from './seedQuotes';
