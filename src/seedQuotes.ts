@@ -6,11 +6,11 @@ import { eq } from 'drizzle-orm';
 // Improved parseQuoteAndAuthor function for various Gemini formats
 function parseQuoteAndAuthor(geminiText: string): { quote: string; author: string } {
     // Remove leading explanations or intro lines (e.g., "Here's a daily quote...")
-    let cleaned = geminiText.replace(/^.*?:\s*\n+/s, '').trim();
+    let cleaned = geminiText.replace(/^.*?:\s*\n+/g, '').trim();
 
     // Try to extract the last occurrence of - Author (with optional quotes)
-    // Accepts both straight and curly quotes
-    const match = cleaned.match(/["“”']?(.*?)[.!?]?"?\s*-\s*([^\n]+)$/s);
+    // Accepts both straight and curly quotes, works across lines
+    const match = cleaned.match(/["“”']?([\s\S]*?)[.!?]?"?\s*-\s*([^\n]+)$/);
     if (match) {
         return {
             quote: match[1].replace(/^["“”']|["“”']$/g, '').trim(),

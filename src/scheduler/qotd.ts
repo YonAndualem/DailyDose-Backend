@@ -4,6 +4,26 @@ import { categories, quotes } from '../db/schema';
 import { generateWithGemini } from '../gemini';
 import { eq, and, between } from 'drizzle-orm';
 
+// Regex rewritten to avoid /s flag (dotAll), using [\s\S] for dotAll behavior
+function parseQuoteAndAuthor(geminiText: string): { quote: string; author: string } {
+    // Remove leading explanations or intro lines (e.g., "Here's a daily quote...")
+    let cleaned = geminiText.replace(/^.*?:\s*\n+/g, '').trim();
+
+    // Match quote and author (across multiple lines)
+    const match = cleaned.match(/["“”']?([\s\S]*?)[.!?]?"?\s*-\s*([^\n]+)$/);
+    if (match) {
+        return {
+            quote: match[1].replace(/^["“”']|["“”']$/g, '').trim(),
+            author: match[2].trim(),
+        };
+    }
+    // Fallback: no author found
+    return {
+        quote: cleaned.trim(),
+        author: 'Unknown',
+    };
+}
+
 // Retry wrapper for Gemini requests with exponential backoff
 async function generateWithGeminiWithRetry(prompt: string, retries = 5, delay = 2000): Promise<string> {
     for (let i = 0; i < retries; i++) {
@@ -20,20 +40,6 @@ async function generateWithGeminiWithRetry(prompt: string, retries = 5, delay = 
         }
     }
     throw new Error('Gemini API repeatedly overloaded, giving up.');
-}
-
-function parseQuoteAndAuthor(geminiText: string): { quote: string; author: string } {
-    const match = geminiText.match(/^["“”']?(.*?)[.?!]["“”']?\s*-\s*(.+)$/);
-    if (match) {
-        return {
-            quote: match[1].trim(),
-            author: match[2].trim(),
-        };
-    }
-    return {
-        quote: geminiText.trim(),
-        author: 'Unknown',
-    };
 }
 
 // Schedule to run every day at midnight UTC
