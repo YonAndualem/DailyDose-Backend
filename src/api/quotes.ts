@@ -4,6 +4,23 @@ import { quotes, categories } from '../db/schema';
 import { ilike, eq, and, between } from 'drizzle-orm';
 import { generateWithGemini } from '../gemini';
 
+// Utility function to parse quote and author from Gemini response
+function parseQuoteAndAuthor(geminiText: string): { quote: string; author: string } {
+    // Matches: "Something here." - Someone
+    const match = geminiText.match(/^["“”']?(.*?)[.?!]["“”']?\s*-\s*(.+)$/);
+    if (match) {
+        return {
+            quote: match[1].trim(),
+            author: match[2].trim(),
+        };
+    }
+    // If not matched, fallback
+    return {
+        quote: geminiText.trim(),
+        author: 'Unknown'
+    };
+}
+
 const router = express.Router();
 
 // Create a quote powered by Gemini
@@ -34,14 +51,16 @@ router.post('/', async (req, res) => {
         if (date) prompt += ` For the date ${date}.`;
 
         // Call Gemini to generate the quote
-        const generatedQuote: string = await generateWithGemini(prompt);
-        const finalAuthor = author || 'Unknown';
+        const rawGemini = await generateWithGemini(prompt);
+        const { quote: parsedQuote, author: parsedAuthor } = parseQuoteAndAuthor(rawGemini);
+
+        const finalAuthor = author || parsedAuthor || 'Unknown';
 
         // Insert the new quote
         const [newQuote] = await db
             .insert(quotes)
             .values({
-                quote: generatedQuote,
+                quote: parsedQuote,
                 author: finalAuthor,
                 category_id: categoryRecord.id,
                 type: type ?? 'daily',
@@ -194,15 +213,16 @@ router.get('/random/of-the-day', async (req, res) => {
         const allCategories = await db.select().from(categories);
         const randomCat = allCategories[Math.floor(Math.random() * allCategories.length)];
 
-        const generatedQuote: string = await generateWithGemini(
+        const rawGemini = await generateWithGemini(
             `Give me a daily quote in the category ${randomCat.name}.`
         );
+        const { quote: parsedQuote, author: parsedAuthor } = parseQuoteAndAuthor(rawGemini);
 
         const [newQOTD] = await db
             .insert(quotes)
             .values({
-                quote: generatedQuote,
-                author: 'Unknown',
+                quote: parsedQuote,
+                author: parsedAuthor || 'Unknown',
                 category_id: randomCat.id,
                 type: 'daily',
                 date: today,
