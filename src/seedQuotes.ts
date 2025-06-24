@@ -3,6 +3,7 @@ import { categories, quotes } from './db/schema';
 import { generateWithGemini } from './gemini';
 import { eq, and, between } from 'drizzle-orm';
 import { parseQuoteAndAuthor } from './utils/parseQuoteAndAuthor';
+import { cleanGeminiOutput } from './utils/cleanGeminiOutput';
 
 async function generateWithGeminiWithRetry(prompt: string, retries = 5, delay = 2000): Promise<string> {
     for (let i = 0; i < retries; i++) {
@@ -44,23 +45,44 @@ export async function seedDailyQuotes() {
                 )
             );
 
-        const count = countQuotes.length;
+        let count = countQuotes.length;
         console.log(`Category "${cat.name}" has ${count} quotes for today.`);
 
-        for (let i = count; i < 5; i++) {
-            console.log(`Generating quote ${i + 1} for category ${cat.name}...`);
+        let attempts = 0;
+        for (let i = count; i < 5 && attempts < 20;) {
+            const prompt = `Give me only the text of a famous ${cat.name} quote, in the format: [quote] - [author]. No explanation, no introduction, just the quote.`;
             let rawGemini: string;
             try {
-                rawGemini = await generateWithGeminiWithRetry(
-                    `Give me a daily quote in the category ${cat.name}.`
-                );
+                rawGemini = await generateWithGeminiWithRetry(prompt);
             } catch (err) {
                 console.error(`Failed to fetch quote for ${cat.name}:`, err);
+                attempts++;
                 continue;
             }
-            const { quote, author } = parseQuoteAndAuthor(rawGemini);
+            const cleaned = cleanGeminiOutput(rawGemini);
+            const { quote, author } = parseQuoteAndAuthor(cleaned);
 
-            console.log(`Inserting for category ${cat.name}: "${quote}" - ${author}`);
+            // Check for duplicates for this category and date
+            const existingQuote = await db
+                .select()
+                .from(quotes)
+                .where(
+                    and(
+                        eq(quotes.category_id, cat.id),
+                        eq(quotes.type, 'daily'),
+                        between(quotes.date, today, tomorrow),
+                        eq(quotes.quote, quote)
+                    )
+                )
+                .limit(1);
+
+            if (existingQuote.length > 0) {
+                console.log('Duplicate quote found, retrying...');
+                attempts++;
+                continue;
+            }
+
+            // Insert if unique
             try {
                 const inserted = await db
                     .insert(quotes)
@@ -73,10 +95,13 @@ export async function seedDailyQuotes() {
                     })
                     .returning();
 
-                console.log('Inserted:', inserted);
+                console.log(`Inserted for category ${cat.name}: "${quote}" - ${author}`);
+                i++;
+                count++;
             } catch (err) {
                 console.error('Insert failed:', err);
             }
+            attempts++;
         }
     }
 }
