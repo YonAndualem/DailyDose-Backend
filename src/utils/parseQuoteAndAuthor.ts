@@ -22,4 +22,4 @@ export function parseQuoteAndAuthor(text: string): { quote: string; author: stri
 
     // If all fails, return as quote with 'Unknown' author
     return { quote: cleaned.replace(/^["“”'\[\]]+|["“”'\[\]]+$/g, '').trim(), author: 'Unknown' };
-  }
+}

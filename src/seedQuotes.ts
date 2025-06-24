@@ -14,15 +14,15 @@ const promptVariants = [
     (cat: string) => `Only return a famous ${cat} quote and its author. Use this exact format: [quote text] - [author]. No explanations.`
 ];
 
-// 30 seconds between retries
-async function generateWithGeminiWithRetry(prompt: string, retries = 5, delay = 30000): Promise<string> {
+// Exponential backoff: at least 30 seconds, doubles each retry, max 5 minutes
+async function generateWithGeminiWithRetry(prompt: string, retries = 5, minDelay = 30000, maxDelay = 300000): Promise<string> {
     for (let i = 0; i < retries; i++) {
         try {
             return await generateWithGemini(prompt);
         } catch (err: any) {
             if ((err?.error?.code === 503 || err?.error?.code === 429) && i < retries - 1) {
-                const backoff = delay; // Always 30 seconds
-                console.log(`Gemini overloaded or quota exceeded, retrying in ${backoff / 1000} seconds...`);
+                const backoff = Math.min(minDelay * Math.pow(2, i), maxDelay);
+                console.log(`Gemini overloaded or quota exceeded, retrying in ${Math.round(backoff / 1000)} seconds...`);
                 await new Promise(res => setTimeout(res, backoff));
             } else {
                 throw err;
@@ -71,7 +71,7 @@ export async function seedDailyQuotes() {
 
             let rawGemini: string;
             try {
-                rawGemini = await generateWithGeminiWithRetry(prompt, 5, 30000);
+                rawGemini = await generateWithGeminiWithRetry(prompt, 5, 30000, 300000);
             } catch (err) {
                 console.error(`Failed to fetch quote for ${cat.name}:`, err);
                 attempts++;
