@@ -4,7 +4,8 @@
   "main": "src/server.ts",
   "type": "commonjs",
   "scripts": {
-    "dev": "nodemon src/server.ts"
+    "dev": "nodemon src/server.ts",
+    "seed:quotes": "ts-node src/seedQuotes.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.1",
