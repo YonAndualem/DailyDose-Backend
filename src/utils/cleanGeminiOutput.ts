@@ -8,4 +8,4 @@ export function cleanGeminiOutput(raw: string): string {
         .join(' ')
         .replace(/\s+/g, ' ')
         .trim();
-}
+  }

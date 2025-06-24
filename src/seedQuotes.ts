@@ -5,14 +5,24 @@ import { eq, and, between } from 'drizzle-orm';
 import { parseQuoteAndAuthor } from './utils/parseQuoteAndAuthor';
 import { cleanGeminiOutput } from './utils/cleanGeminiOutput';
 
-async function generateWithGeminiWithRetry(prompt: string, retries = 5, delay = 2000): Promise<string> {
+// --- Prompt templates for randomization ---
+const promptVariants = [
+    (cat: string) => `Share a famous ${cat} quote. Format: [quote text] - [author]. Only the quote, nothing else.`,
+    (cat: string) => `Give me a well-known ${cat} quote, only the quote and author in this format: [quote text] - [author]. No extra text.`,
+    (cat: string) => `Provide a ${cat} quote by a notable person. Respond with only the quote, formatted: [quote text] - [author].`,
+    (cat: string) => `What is an inspiring ${cat} quote? Please reply with just the quote and author, formatted as: [quote text] - [author].`,
+    (cat: string) => `Only return a famous ${cat} quote and its author. Use this exact format: [quote text] - [author]. No explanations.`
+];
+
+// 30 seconds between retries
+async function generateWithGeminiWithRetry(prompt: string, retries = 5, delay = 30000): Promise<string> {
     for (let i = 0; i < retries; i++) {
         try {
             return await generateWithGemini(prompt);
         } catch (err: any) {
             if ((err?.error?.code === 503 || err?.error?.code === 429) && i < retries - 1) {
-                const backoff = delay * (i + 1);
-                console.log(`Gemini overloaded or quota exceeded, retrying in ${backoff}ms...`);
+                const backoff = delay; // Always 30 seconds
+                console.log(`Gemini overloaded or quota exceeded, retrying in ${backoff / 1000} seconds...`);
                 await new Promise(res => setTimeout(res, backoff));
             } else {
                 throw err;
@@ -33,9 +43,9 @@ export async function seedDailyQuotes() {
     console.log('Found categories:', allCategories.map(c => c.name));
 
     for (const cat of allCategories) {
-        // Count how many daily quotes exist for this category today
+        // Get all quotes for this category today
         const countQuotes = await db
-            .select()
+            .select({ quote: quotes.quote })
             .from(quotes)
             .where(
                 and(
@@ -46,14 +56,22 @@ export async function seedDailyQuotes() {
             );
 
         let count = countQuotes.length;
+        const usedQuotesList = countQuotes.map(q => `"${q.quote}"`).join(', ');
+
         console.log(`Category "${cat.name}" has ${count} quotes for today.`);
 
         let attempts = 0;
         for (let i = count; i < 5 && attempts < 20;) {
-            const prompt = `Give me only the text of a famous ${cat.name} quote, in the format: [quote] - [author]. No explanation, no introduction, just the quote.`;
+            // --- Randomize prompt each time ---
+            const randomIndex = Math.floor(Math.random() * promptVariants.length);
+            let prompt = promptVariants[randomIndex](cat.name);
+
+            if (usedQuotesList.length > 0)
+                prompt += ` Do NOT use any of these quotes: ${usedQuotesList}`;
+
             let rawGemini: string;
             try {
-                rawGemini = await generateWithGeminiWithRetry(prompt);
+                rawGemini = await generateWithGeminiWithRetry(prompt, 5, 30000);
             } catch (err) {
                 console.error(`Failed to fetch quote for ${cat.name}:`, err);
                 attempts++;
