@@ -6,7 +6,6 @@ import './scheduler/qotd';
 
 // Only start the API server – no seeding logic here.
 const app = express();
-const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
@@ -17,7 +16,7 @@ app.use('/api/quotes', quotesRouter);
 // --- Categories endpoints ---
 app.use('/api/categories', categoriesRouter);
 
-app.listen(PORT, () => {
-    console.log(`Gemini backend running on http://localhost:${PORT}`);
-});
-// Handle 404 errors
+// Remove app.listen!
+
+export default app; // For ES module (TypeScript/ES6+)
+module.exports = app; // For CommonJS compatibility
