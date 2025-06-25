@@ -20,3 +20,4 @@ app.use('/api/categories', categoriesRouter);
 app.listen(PORT, () => {
     console.log(`Gemini backend running on http://localhost:${PORT}`);
 });
+// Handle 404 errors
