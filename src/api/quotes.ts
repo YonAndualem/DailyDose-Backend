@@ -190,17 +190,23 @@ router.get('/random/of-the-day', async (req, res) => {
         const today = new Date();
         today.setUTCHours(0, 0, 0, 0);
 
-        // Remove any existing QOTD for today (optional, if you want to always refresh)
-        await db
-            .delete(quotes)
+        // Try to find today's QOTD (ensure date comparison matches DB)
+        const [existingQOTD] = await db
+            .select()
+            .from(quotes)
             .where(
                 and(
                     eq(quotes.type, 'daily'),
-                    eq(quotes.date, today)
+                    eq(quotes.date, today) // Use eq, not between, if storing just date
                 )
-            );
+            )
+            .limit(1);
 
-        // Generate new QOTD
+        if (existingQOTD) {
+            return res.json(existingQOTD);
+        }
+
+        // No QOTD yet: generate a new one
         const allCategories = await db.select().from(categories);
         const randomCat = allCategories[Math.floor(Math.random() * allCategories.length)];
 
