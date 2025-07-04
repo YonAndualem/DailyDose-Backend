@@ -2,6 +2,7 @@ import { db } from './db/index';
 import { quotes } from './db/schema';
 import { and, eq, sql } from 'drizzle-orm';
 import { parseQuoteAndAuthor } from './utils/parseQuoteAndAuthor';
+import { inArray } from 'drizzle-orm';
 
 // 1. Fetch all quotes
 async function fetchAllQuotes() {
@@ -45,7 +46,7 @@ async function cleanupQuotes() {
 
     // Delete duplicates from DB
     if (toDelete.length > 0) {
-        await db.delete(quotes).where(sql`${quotes.id} = ANY(${toDelete})`);
+        await db.delete(quotes).where(inArray(quotes.id, toDelete));
         console.log(`Deleted ${toDelete.length} duplicate quotes.`);
     } else {
         console.log('No duplicates found.');
