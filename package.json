@@ -5,8 +5,7 @@
   "type": "commonjs",
   "scripts": {
     "dev": "nodemon src/server.ts",
-    "seed:quotes": "ts-node src/seedQuotes.ts",
-    "cleanup:quotes": "ts-node src/cleanupQuotes.ts"
+    "seed:quotes": "ts-node src/seedQuotes.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.1",
