@@ -184,20 +184,46 @@ router.delete('/:id', async (req, res) => {
     }
 });
 
+// Get quote by uuid
+router.get('/uuid/:uuid', async (req, res) => {
+    try {
+        const uuid = String(req.params.uuid);
+
+        const [quoteData] = await db
+            .select({
+                id: quotes.id,
+                uuid: quotes.uuid,
+                quote: quotes.quote,
+                author: quotes.author,
+                category: categories.name,
+                type: quotes.type,
+                date: quotes.date,
+            })
+            .from(quotes)
+            .leftJoin(categories, eq(quotes.category_id, categories.id))
+            .where(eq(quotes.uuid, uuid))
+            .limit(1);
+
+        if (!quoteData) return res.status(404).json({ error: 'Quote not found.' });
+        res.json(quoteData);
+    } catch (err: any) {
+        res.status(500).json({ error: err.message || 'Server error.' });
+    }
+});
+
 // Quote of the Day endpoint: GET /api/quotes/random/of-the-day
 router.get('/random/of-the-day', async (req, res) => {
     try {
         const today = new Date();
         today.setUTCHours(0, 0, 0, 0);
 
-        // 1. Try to find today's QOTD
-        const [existingQOTD] = await db
+ const [existingQOTD] = await db
             .select()
             .from(quotes)
             .where(
                 and(
                     eq(quotes.type, 'daily'),
-                    eq(quotes.date, today)
+                    eq(quotes.date, today) // Use eq, not between, if storing just date
                 )
             )
             .limit(1);
@@ -205,7 +231,8 @@ router.get('/random/of-the-day', async (req, res) => {
         if (existingQOTD) {
             return res.json(existingQOTD);
         }
-
+      
+      
         // 2. Pick a random quote from all quotes (not marked as QOTD already for today)
         const allQuotes = await db
             .select()
@@ -244,5 +271,4 @@ router.get('/random/of-the-day', async (req, res) => {
         res.status(500).json({ error: err.message || 'Server error.' });
     }
 });
-
 export default router;
