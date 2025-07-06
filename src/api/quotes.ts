@@ -217,56 +217,44 @@ router.get('/random/of-the-day', async (req, res) => {
         const today = new Date();
         today.setUTCHours(0, 0, 0, 0);
 
- const [existingQOTD] = await db
-            .select()
-            .from(quotes)
+        // For testing: delete any QOTD for today so it's always re-picked!
+        await db.delete(quotes)
             .where(
                 and(
                     eq(quotes.type, 'daily'),
-                    eq(quotes.date, today) // Use eq, not between, if storing just date
-                )
-            )
-            .limit(1);
-
-        if (existingQOTD) {
-            return res.json(existingQOTD);
-        }
-      
-      
-        // 2. Pick a random quote from all quotes (not marked as QOTD already for today)
-        const allQuotes = await db
-            .select()
-            .from(quotes)
-            .where(
-                // Exclude today's QOTD if any exist (shouldn't, but for safety)
-                or(
-                    eq(quotes.type, ''), // or type !== 'daily'
-                    eq(quotes.type, ''),
-                    eq(quotes.type, 'regular'),
-                    eq(quotes.type, 'quote'), // or whatever your default types are
+                    eq(quotes.date, today)
                 )
             );
 
+        // Fetch all regular quotes from the database
+        const allQuotes = await db
+            .select()
+            .from(quotes)
+            .where(eq(quotes.type, 'regular')); // Change if your regular type is not 'regular'
+
         if (!allQuotes.length) {
-            return res.status(404).json({ error: "No quotes available." });
+            return res.status(404).json({ error: "No quotes in database." });
         }
 
-        const randomQuote = allQuotes[Math.floor(Math.random() * allQuotes.length)];
+        // Deterministically pick a quote for today
+        const dayNumber = Math.floor(today.getTime() / (1000 * 60 * 60 * 24));
+        allQuotes.sort((a, b) => (a.uuid > b.uuid ? 1 : -1));
+        const index = dayNumber % allQuotes.length;
+        const todayQuote = allQuotes[index];
 
-        // 3. Insert a new QOTD entry with type: 'daily' and date: today
-        // (Do not mutate the original quote; create a new QOTD record)
+        // Insert as today's QOTD (type: 'daily', date: today)
         const [newQOTD] = await db
             .insert(quotes)
             .values({
-                quote: randomQuote.quote,
-                author: randomQuote.author,
-                category_id: randomQuote.category_id,
+                quote: todayQuote.quote,
+                author: todayQuote.author,
+                category_id: todayQuote.category_id,
                 type: 'daily',
                 date: today,
             })
             .returning();
 
-        res.json(newQOTD);
+        return res.json(newQOTD);
     } catch (err: any) {
         res.status(500).json({ error: err.message || 'Server error.' });
     }
