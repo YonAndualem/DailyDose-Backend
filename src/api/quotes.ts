@@ -211,22 +211,37 @@ router.get('/uuid/:uuid', async (req, res) => {
     }
 });
 
-// Quote of the Day endpoint: GET /api/quotes/random/of-the-day
 router.get('/random/of-the-day', async (req, res) => {
     try {
         const today = new Date();
         today.setUTCHours(0, 0, 0, 0);
 
-        // Fetch all regular quotes from the database
-        const allQuotes = await db
+        // 1. Check if today's QOTD is already set
+        const [existingQOTD] = await db
             .select()
             .from(quotes)
+            .where(
+                and(
+                    eq(quotes.type, 'daily'),
+                    eq(quotes.date, today)
+                )
+            )
+            .limit(1);
+
+        if (existingQOTD) {
+            // QOTD is already set for today, return it
+            return res.json(existingQOTD);
+        }
+
+        // 2. If not, pick one deterministically and insert as QOTD
+        const allQuotes = await db
+            .select()
+            .from(quotes);
 
         if (!allQuotes.length) {
             return res.status(404).json({ error: "No quotes in database." });
         }
 
-        // Deterministically pick a quote for today
         const dayNumber = Math.floor(today.getTime() / (1000 * 60 * 60 * 24));
         allQuotes.sort((a, b) => (a.uuid > b.uuid ? 1 : -1));
         const index = dayNumber % allQuotes.length;
