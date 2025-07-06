@@ -217,20 +217,10 @@ router.get('/random/of-the-day', async (req, res) => {
         const today = new Date();
         today.setUTCHours(0, 0, 0, 0);
 
-        // For testing: delete any QOTD for today so it's always re-picked!
-        await db.delete(quotes)
-            .where(
-                and(
-                    eq(quotes.type, 'daily'),
-                    eq(quotes.date, today)
-                )
-            );
-
         // Fetch all regular quotes from the database
         const allQuotes = await db
             .select()
             .from(quotes)
-            .where(eq(quotes.type, 'regular')); // Change if your regular type is not 'regular'
 
         if (!allQuotes.length) {
             return res.status(404).json({ error: "No quotes in database." });
