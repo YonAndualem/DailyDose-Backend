@@ -1,7 +1,7 @@
 import express from 'express';
 import { db } from '../db/index';
 import { quotes, categories } from '../db/schema';
-import { ilike, eq, and, between } from 'drizzle-orm';
+import { ilike, eq, and, or, between } from 'drizzle-orm';
 import { generateWithGemini } from '../gemini';
 
 // Utility function to parse quote and author from Gemini response
@@ -190,17 +190,14 @@ router.get('/random/of-the-day', async (req, res) => {
         const today = new Date();
         today.setUTCHours(0, 0, 0, 0);
 
-        const tomorrow = new Date(today);
-        tomorrow.setUTCDate(today.getUTCDate() + 1);
-
-        // Try to find today's QOTD
+        // 1. Try to find today's QOTD
         const [existingQOTD] = await db
             .select()
             .from(quotes)
             .where(
                 and(
                     eq(quotes.type, 'daily'),
-                    between(quotes.date, today, tomorrow)
+                    eq(quotes.date, today)
                 )
             )
             .limit(1);
@@ -209,21 +206,34 @@ router.get('/random/of-the-day', async (req, res) => {
             return res.json(existingQOTD);
         }
 
-        // No QOTD yet: generate a new one
-        const allCategories = await db.select().from(categories);
-        const randomCat = allCategories[Math.floor(Math.random() * allCategories.length)];
+        // 2. Pick a random quote from all quotes (not marked as QOTD already for today)
+        const allQuotes = await db
+            .select()
+            .from(quotes)
+            .where(
+                // Exclude today's QOTD if any exist (shouldn't, but for safety)
+                or(
+                    eq(quotes.type, ''), // or type !== 'daily'
+                    eq(quotes.type, ''),
+                    eq(quotes.type, 'regular'),
+                    eq(quotes.type, 'quote'), // or whatever your default types are
+                )
+            );
 
-        const rawGemini = await generateWithGemini(
-            `Give me a daily quote in the category ${randomCat.name}.`
-        );
-        const { quote: parsedQuote, author: parsedAuthor } = parseQuoteAndAuthor(rawGemini);
+        if (!allQuotes.length) {
+            return res.status(404).json({ error: "No quotes available." });
+        }
 
+        const randomQuote = allQuotes[Math.floor(Math.random() * allQuotes.length)];
+
+        // 3. Insert a new QOTD entry with type: 'daily' and date: today
+        // (Do not mutate the original quote; create a new QOTD record)
         const [newQOTD] = await db
             .insert(quotes)
             .values({
-                quote: parsedQuote,
-                author: parsedAuthor || 'Unknown',
-                category_id: randomCat.id,
+                quote: randomQuote.quote,
+                author: randomQuote.author,
+                category_id: randomQuote.category_id,
                 type: 'daily',
                 date: today,
             })
