@@ -55,7 +55,6 @@ The server should start at `http://localhost:3000` by default.
 | GET    | `/api/random`       | Get a random quote              |
 | GET    | `/api/categories`   | List all available categories   |
 | GET    | `/api/quotes/:id`   | Get a quote by ID               |
-| ...    | ...                 | *(Add your endpoints!)*         |
 
 ---
 
@@ -76,7 +75,6 @@ To deploy your own:
 Contributions welcome! Please open an issue or pull request.
 
 ---
-
 
 
 ## Author
